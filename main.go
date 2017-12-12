@@ -2,6 +2,7 @@ package main
 
 import (
 	"encoding/xml"
+	"errors"
 	"flag"
 	"fmt"
 	"io/ioutil"
@@ -20,35 +21,45 @@ type testsuite struct {
 	Errors   string   `xml:"errors,attr"`
 }
 
+func CheckForFailedTests(xmlContent []byte) error {
+	suites := testsuites{}
+	err := xml.Unmarshal(xmlContent, &suites)
+
+	if err != nil {
+		return errors.New("Wrong report format")
+	}
+
+	for _, suite := range suites.TestSuiteList {
+		if suite.Errors != "0" || suite.Failures != "0" {
+			return errors.New("There were failures in JUnit test reports: " + suite.Name)
+		}
+	}
+	return nil
+}
+
 // This program returns error if there are any test suites that failed or
 // errored in a JUnit test report.
 func main() {
 	flag.Parse()
 	args := flag.Args()
-	fmt.Println(args)
+
 	if len(args) != 1 {
 		fmt.Println("One argument (file path) required")
 		os.Exit(1)
 	}
 
-	d := testsuites{}
-	xmlContent, _ := ioutil.ReadFile(args[0])
-	err := xml.Unmarshal(xmlContent, &d)
-
+	xmlContent, err := ioutil.ReadFile(args[0])
 	if err != nil {
-		fmt.Println("Bad JUnit report format")
-		panic(err)
+		fmt.Println(err)
+		os.Exit(1)
 	}
+	testsFailed := CheckForFailedTests(xmlContent)
 
-	for _, suite := range d.TestSuiteList {
-		if suite.Errors == "0" && suite.Failures == "0" {
-			fmt.Println("No errors in JUnit test reports, yay!")
-			os.Exit(0)
-		} else {
-			fmt.Println("There were failures in JUnit test reports: " + suite.Name)
-			os.Exit(1)
-		}
+	if testsFailed != nil {
+		fmt.Println(testsFailed)
+		os.Exit(1)
+	} else {
+		fmt.Println("No errors in JUnit test reports, yay!")
+		os.Exit(0)
 	}
-	fmt.Println("Unknown error")
-	os.Exit(1)
 }
