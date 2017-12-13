@@ -15,10 +15,29 @@ type testsuites struct {
 }
 
 type testsuite struct {
-	XMLName  xml.Name `xml:"testsuite"`
-	Name     string   `xml:"name,attr"`
-	Failures string   `xml:"failures,attr"`
-	Errors   string   `xml:"errors,attr"`
+	XMLName      xml.Name   `xml:"testsuite"`
+	Name         string     `xml:"name,attr"`
+	Failures     string     `xml:"failures,attr"`
+	Errors       string     `xml:"errors,attr"`
+	TestCaseList []testcase `xml:"testcase"`
+}
+
+type testcase struct {
+	XMLName     xml.Name        `xml:"testcase"`
+	Classname   string          `xml:"classname,attr"`
+	Name        string          `xml:"name,attr"`
+	SkipMessage *skipMessage    `xml:"skipped,omitempty"`
+	Failure     *failureMessage `xml:"failure,omitempty"`
+}
+
+type skipMessage struct {
+	Message string `xml:"message,attr"`
+}
+
+type failureMessage struct {
+	Message  string `xml:"message,attr"`
+	Type     string `xml:"type,attr"`
+	Contents string `xml:",chardata"`
 }
 
 func CheckForFailedTests(xmlContent []byte) error {
@@ -26,11 +45,19 @@ func CheckForFailedTests(xmlContent []byte) error {
 	err := xml.Unmarshal(xmlContent, &suites)
 
 	if err != nil {
-		return errors.New("Wrong report format")
+		err := xml.Unmarshal(xmlContent, &suites.TestSuiteList)
+		if err != nil {
+			return errors.New("Wrong report format")
+		}
 	}
 
 	for _, suite := range suites.TestSuiteList {
-		if suite.Errors != "0" || suite.Failures != "0" {
+		if (suite.Errors != "" && suite.Errors != "0") || (suite.Failures != "" && suite.Failures != "0") {
+			for _, testCase := range suite.TestCaseList {
+				if testCase.SkipMessage == nil && testCase.Failure != nil {
+					fmt.Println("Failed Test:", testCase.Name, testCase.Classname)
+				}
+			}
 			return errors.New("There were failures in JUnit test reports: " + suite.Name)
 		}
 	}
