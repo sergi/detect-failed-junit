@@ -23,11 +23,11 @@ type testsuite struct {
 }
 
 type testcase struct {
-	XMLName     xml.Name        `xml:"testcase"`
-	Classname   string          `xml:"classname,attr"`
-	Name        string          `xml:"name,attr"`
-	SkipMessage *skipMessage    `xml:"skipped,omitempty"`
-	Failure     *failureMessage `xml:"failure,omitempty"`
+	XMLName        xml.Name        `xml:"testcase"`
+	Classname      string          `xml:"classname,attr"`
+	Name           string          `xml:"name,attr"`
+	SkipMessage    *skipMessage    `xml:"skipped,omitempty"`
+	FailureMessage *failureMessage `xml:"failure,omitempty"`
 }
 
 type skipMessage struct {
@@ -54,11 +54,14 @@ func CheckForFailedTests(xmlContent []byte) error {
 	for _, suite := range suites.TestSuiteList {
 		if (suite.Errors != "" && suite.Errors != "0") || (suite.Failures != "" && suite.Failures != "0") {
 			for _, testCase := range suite.TestCaseList {
-				if testCase.SkipMessage == nil && testCase.Failure != nil {
+				if testCase.SkipMessage == nil && testCase.FailureMessage != nil {
 					fmt.Println("Failed Test:", testCase.Name, testCase.Classname)
+					if testCase.FailureMessage != nil {
+						fmt.Println(testCase.FailureMessage)
+					}
 				}
 			}
-			return errors.New("There were failures in JUnit test reports: " + suite.Name)
+			return errors.New("Failures found in the following test suite: " + suite.Name)
 		}
 	}
 	return nil
@@ -80,13 +83,15 @@ func main() {
 		fmt.Println(err)
 		os.Exit(1)
 	}
+	fmt.Println("====== JUnit Test Validator ======")
+	fmt.Println("Checking '" + args[0] + "' for failed/errored tests...")
 	testsFailed := CheckForFailedTests(xmlContent)
 
 	if testsFailed != nil {
 		fmt.Println(testsFailed)
 		os.Exit(1)
 	} else {
-		fmt.Println("No errors in JUnit test reports, yay!")
+		fmt.Println("No errors, yay!")
 		os.Exit(0)
 	}
 }
