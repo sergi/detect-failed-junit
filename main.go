@@ -7,6 +7,7 @@ import (
 	"fmt"
 	"io/ioutil"
 	"os"
+	"github.com/fatih/color"
 )
 
 type testsuites struct {
@@ -17,8 +18,9 @@ type testsuites struct {
 type testsuite struct {
 	XMLName      xml.Name   `xml:"testsuite"`
 	Name         string     `xml:"name,attr"`
-	Failures     string     `xml:"failures,attr"`
-	Errors       string     `xml:"errors,attr"`
+	Failures     int        `xml:"failures,attr"`
+	Skipped      int        `xml:"skipped,attr"`
+	Errors       int        `xml:"errors,attr"`
 	TestCaseList []testcase `xml:"testcase"`
 }
 
@@ -26,6 +28,7 @@ type testcase struct {
 	XMLName        xml.Name        `xml:"testcase"`
 	Classname      string          `xml:"classname,attr"`
 	Name           string          `xml:"name,attr"`
+	Time           string          `xml:"time,attr"`
 	SkipMessage    *skipMessage    `xml:"skipped,omitempty"`
 	FailureMessage *failureMessage `xml:"failure,omitempty"`
 }
@@ -43,25 +46,37 @@ type failureMessage struct {
 func CheckForFailedTests(xmlContent []byte) error {
 	suites := testsuites{}
 	err := xml.Unmarshal(xmlContent, &suites)
-
 	if err != nil {
 		err := xml.Unmarshal(xmlContent, &suites.TestSuiteList)
 		if err != nil {
 			return errors.New("Wrong report format")
 		}
 	}
-
 	for _, suite := range suites.TestSuiteList {
-		if (suite.Errors != "" && suite.Errors != "0") || (suite.Failures != "" && suite.Failures != "0") {
-			for _, testCase := range suite.TestCaseList {
-				if testCase.SkipMessage == nil && testCase.FailureMessage != nil {
-					fmt.Println("Failed Test:", testCase.Name, testCase.Classname)
-					if testCase.FailureMessage != nil {
-						fmt.Println(testCase.FailureMessage)
-					}
-				}
+		green := color.New(color.FgGreen).SprintFunc()
+		yellow := color.New(color.FgYellow).SprintFunc()
+		red := color.New(color.FgRed).SprintFunc()
+		fmt.Printf("%s: %d tests\n", red("ERRORS"), suite.Errors)
+		var skipped,failed,passed int
+		for _, testCase := range suite.TestCaseList {
+			if testCase.SkipMessage != nil {
+				fmt.Printf("%s: %s\n", yellow("SKIPPED"), testCase.Name)
+				skipped++
 			}
-			return errors.New("Failures found in the following test suite: " + suite.Name)
+			if testCase.FailureMessage != nil {
+				fmt.Printf("%s: %s (%s)\n", red("FAILED"), testCase.Name, testCase.FailureMessage)
+				failed++
+			}
+			if testCase.FailureMessage == nil && testCase.SkipMessage == nil {
+				fmt.Printf("%s:  %s\n", green("PASSED"), testCase.Name)
+				passed++
+			}
+		}
+		fmt.Printf("%s: %d tests\n", red("SKIPPED"), skipped)
+		fmt.Printf("%s: %d tests\n", red("FAILED"), failed)
+		fmt.Printf("%s: %d tests\n", green("PASSED"), passed)
+		if (suite.Errors > 0) || (suite.Failures > 0) {
+			return errors.New("There were failures in JUnit test reports: " + suite.Name)
 		}
 	}
 	return nil
