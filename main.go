@@ -1,63 +1,28 @@
 package main
 
 import (
-	"encoding/xml"
 	"errors"
 	"flag"
 	"fmt"
 	"io/ioutil"
 	"os"
+
 	"github.com/fatih/color"
+	"github.com/kstiehl/detect-failed-junit/parser"
 )
 
-type testsuites struct {
-	XMLName       xml.Name    `xml:"testsuites"`
-	TestSuiteList []testsuite `xml:"testsuite"`
-}
-
-type testsuite struct {
-	XMLName      xml.Name   `xml:"testsuite"`
-	Name         string     `xml:"name,attr"`
-	Failures     int        `xml:"failures,attr"`
-	Skipped      int        `xml:"skipped,attr"`
-	Errors       int        `xml:"errors,attr"`
-	TestCaseList []testcase `xml:"testcase"`
-}
-
-type testcase struct {
-	XMLName        xml.Name        `xml:"testcase"`
-	Classname      string          `xml:"classname,attr"`
-	Name           string          `xml:"name,attr"`
-	Time           string          `xml:"time,attr"`
-	SkipMessage    *skipMessage    `xml:"skipped,omitempty"`
-	FailureMessage *failureMessage `xml:"failure,omitempty"`
-}
-
-type skipMessage struct {
-	Message string `xml:"message,attr"`
-}
-
-type failureMessage struct {
-	Message  string `xml:"message,attr"`
-	Type     string `xml:"type,attr"`
-	Contents string `xml:",chardata"`
-}
-
 func CheckForFailedTests(xmlContent []byte) error {
-	suites := testsuites{}
-	err := xml.Unmarshal(xmlContent, &suites)
+	suites, err := parser.Unmarshal(xmlContent)
 	if err != nil {
-		err := xml.Unmarshal(xmlContent, &suites.TestSuiteList)
-		if err != nil {
-			return errors.New("Wrong report format")
-		}
+		fmt.Fprintf(os.Stderr, "Could not parse xml content %s", err.Error())
 	}
+
 	for _, suite := range suites.TestSuiteList {
 		green := color.New(color.FgGreen).SprintFunc()
 		yellow := color.New(color.FgYellow).SprintFunc()
 		red := color.New(color.FgRed).SprintFunc()
 		fmt.Printf("%s: %d tests\n", red("ERRORS"), suite.Errors)
-		var skipped,failed,passed int
+		var skipped, failed, passed int
 		for _, testCase := range suite.TestCaseList {
 			if testCase.SkipMessage != nil {
 				fmt.Printf("%s: %s\n", yellow("SKIPPED"), testCase.Name)
