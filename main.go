@@ -8,7 +8,7 @@ import (
 	"os"
 
 	"github.com/fatih/color"
-	"github.com/kstiehl/detect-failed-junit/parser"
+	"github.com/sergi/detect-failed-junit/parser"
 )
 
 func CheckForFailedTests(xmlContent []byte) error {
